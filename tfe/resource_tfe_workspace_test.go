@@ -301,11 +301,11 @@ func TestAccTFEWorkspace_updateWorkingDirectory(t *testing.T) {
 						"tfe_workspace.foobar", workspace),
 					testAccCheckTFEWorkspaceAttributesUpdatedAddWorkingDirectory(workspace),
 					resource.TestCheckResourceAttr(
-						"tfe_workspace.foobar", "name", "workspace-updated"),
-					resource.TestCheckResourceAttr(
 						"tfe_workspace.foobar", "working_directory", "terraform/test"),
 				),
 			},
+			// Removing working_directory attribute should not change previous value
+			// (This is for backward compatibility)
 			{
 				Config: testAccTFEWorkspace_updateRemoveWorkingDirectory,
 				Check: resource.ComposeTestCheckFunc(
@@ -313,7 +313,16 @@ func TestAccTFEWorkspace_updateWorkingDirectory(t *testing.T) {
 						"tfe_workspace.foobar", workspace),
 					testAccCheckTFEWorkspaceAttributesUpdatedRemoveWorkingDirectory(workspace),
 					resource.TestCheckResourceAttr(
-						"tfe_workspace.foobar", "name", "workspace-updated"),
+						"tfe_workspace.foobar", "working_directory", "terraform/test"),
+				),
+			},
+			// Empty value should reset working_directory to root of repository
+			{
+				Config: testAccTFEWorkspace_updateEmptyWorkingDirectory,
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckTFEWorkspaceExists(
+						"tfe_workspace.foobar", workspace),
+					testAccCheckTFEWorkspaceAttributesUpdatedEmptyWorkingDirectory(workspace),
 					resource.TestCheckResourceAttr(
 						"tfe_workspace.foobar", "working_directory", ""),
 				),
@@ -564,12 +573,8 @@ func testAccCheckTFEWorkspaceAttributesUpdated(
 func testAccCheckTFEWorkspaceAttributesUpdatedAddWorkingDirectory(
 	workspace *tfe.Workspace) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		if workspace.Name != "workspace-updated" {
-			return fmt.Errorf("Bad name: %s", workspace.Name)
-		}
-
 		if workspace.WorkingDirectory != "terraform/test" {
-			return fmt.Errorf("Today Bad working directory: %s", workspace.WorkingDirectory)
+			return fmt.Errorf("Test 1 Bad working directory: %s", workspace.WorkingDirectory)
 		}
 
 		return nil
@@ -579,12 +584,19 @@ func testAccCheckTFEWorkspaceAttributesUpdatedAddWorkingDirectory(
 func testAccCheckTFEWorkspaceAttributesUpdatedRemoveWorkingDirectory(
 	workspace *tfe.Workspace) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		if workspace.Name != "workspace-updated" {
-			return fmt.Errorf("Bad name: %s", workspace.Name)
+		if workspace.WorkingDirectory != "terraform/test" {
+			return fmt.Errorf("Test 2 Bad working directory: %s", workspace.WorkingDirectory)
 		}
 
+		return nil
+	}
+}
+
+func testAccCheckTFEWorkspaceAttributesUpdatedEmptyWorkingDirectory(
+	workspace *tfe.Workspace) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
 		if workspace.WorkingDirectory != "" {
-			return fmt.Errorf("Today Bad working directory: %s", workspace.WorkingDirectory)
+			return fmt.Errorf("Test 3 Bad working directory: %s", workspace.WorkingDirectory)
 		}
 
 		return nil
@@ -708,6 +720,19 @@ resource "tfe_workspace" "foobar" {
   organization          = "${tfe_organization.foobar.id}"
   auto_apply            = false
   working_directory     = "terraform/test"
+}`
+
+const testAccTFEWorkspace_updateEmptyWorkingDirectory = `
+resource "tfe_organization" "foobar" {
+  name  = "tst-terraform"
+  email = "admin@company.com"
+}
+
+resource "tfe_workspace" "foobar" {
+  name                  = "workspace-updated"
+  organization          = "${tfe_organization.foobar.id}"
+  auto_apply            = false
+  working_directory     = ""
 }`
 
 const testAccTFEWorkspace_updateRemoveWorkingDirectory = `
