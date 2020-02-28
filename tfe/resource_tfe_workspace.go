@@ -76,7 +76,7 @@ func resourceTFEWorkspace() *schema.Resource {
 			"working_directory": {
 				Type:     schema.TypeString,
 				Optional: true,
-				Default:  "",
+				Computed: true,
 			},
 
 			"vcs_repo": {
@@ -132,7 +132,6 @@ func resourceTFEWorkspaceCreate(d *schema.ResourceData, meta interface{}) error 
 		FileTriggersEnabled: tfe.Bool(d.Get("file_triggers_enabled").(bool)),
 		Operations:          tfe.Bool(d.Get("operations").(bool)),
 		QueueAllRuns:        tfe.Bool(d.Get("queue_all_runs").(bool)),
-		WorkingDirectory:    tfe.String(d.Get("working_directory").(string)),
 	}
 
 	// Process all configured options.
@@ -144,6 +143,13 @@ func resourceTFEWorkspaceCreate(d *schema.ResourceData, meta interface{}) error 
 		for _, tp := range tps.([]interface{}) {
 			options.TriggerPrefixes = append(options.TriggerPrefixes, tp.(string))
 		}
+	}
+
+	if workingDir, ok := d.GetOkExists("working_directory"); ok {
+		options.WorkingDirectory = tfe.String(workingDir.(string))
+	} else {
+		workingDirTmp := ""
+		options.WorkingDirectory = &workingDirTmp
 	}
 
 	// Get and assert the VCS repo configuration block.
@@ -318,7 +324,6 @@ func resourceTFEWorkspaceUpdate(d *schema.ResourceData, meta interface{}) error 
 			FileTriggersEnabled: tfe.Bool(d.Get("file_triggers_enabled").(bool)),
 			Operations:          tfe.Bool(d.Get("operations").(bool)),
 			QueueAllRuns:        tfe.Bool(d.Get("queue_all_runs").(bool)),
-			WorkingDirectory:    tfe.String(d.Get("working_directory").(string)),
 		}
 
 		// Process all configured options.
@@ -332,7 +337,8 @@ func resourceTFEWorkspaceUpdate(d *schema.ResourceData, meta interface{}) error 
 			}
 		}
 
-		if workingDir, ok := d.GetOk("working_directory"); ok {
+		if workingDir, ok := d.GetOkExists("working_directory"); ok {
+			log.Printf("[DEBUG] [OKExists] value %s", workingDir)
 			options.WorkingDirectory = tfe.String(workingDir.(string))
 		}
 
@@ -347,6 +353,8 @@ func resourceTFEWorkspaceUpdate(d *schema.ResourceData, meta interface{}) error 
 				OAuthTokenID:      tfe.String(vcsRepo["oauth_token_id"].(string)),
 			}
 		}
+
+		log.Printf("[DEBUG] Update Options: %#v", options)
 
 		log.Printf("[DEBUG] Update workspace %s for organization: %s", name, organization)
 		workspace, err := tfeClient.Workspaces.Update(ctx, organization, name, options)
